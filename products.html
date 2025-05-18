@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Build Your Plan - My Static Site</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">My Site</div>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="products.html" class="active">Products</a></li>
+                <li><a href="#contact">Contact</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="product-config">
+            <h1>Build Your Plan</h1>
+            <div class="config-container">
+                <form id="product-config-form">
+                    <div class="config-section">
+                        <h2>Basic Configuration</h2>
+                        <div class="form-group">
+                            <label for="plan-type">Plan Type</label>
+                            <select id="plan-type" name="planType" required>
+                                <option value="">Select a plan type</option>
+                                <option value="basic">Basic</option>
+                                <option value="pro">Professional</option>
+                                <option value="enterprise">Enterprise</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <h2>Resources</h2>
+                        <div class="form-group">
+                            <label for="cpu">CPU Cores</label>
+                            <input type="number" id="cpu" name="cpu" min="1" max="16" value="2" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="memory">Memory (GB)</label>
+                            <input type="number" id="memory" name="memory" min="2" max="64" value="4" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="storage">Storage (GB)</label>
+                            <input type="number" id="storage" name="storage" min="20" max="1000" value="100" required>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <h2>Additional Features</h2>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" name="features" value="backup">
+                                Automated Backups
+                            </label>
+                            <label>
+                                <input type="checkbox" name="features" value="monitoring">
+                                Advanced Monitoring
+                            </label>
+                            <label>
+                                <input type="checkbox" name="features" value="support">
+                                24/7 Support
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="price-summary">
+                        <h2>Price Summary</h2>
+                        <div id="price-details">
+                            <p>Base Price: <span id="base-price">$0</span></p>
+                            <p>Resources: <span id="resources-price">$0</span></p>
+                            <p>Features: <span id="features-price">$0</span></p>
+                            <p class="total">Total: <span id="total-price">$0</span></p>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="cta-button">Proceed to Payment</button>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 My Static Site. All rights reserved.</p>
+    </footer>
+
+    <script type="module">
+        import apiClient from './js/api-client.js';
+        
+        // Price calculation
+        const calculatePrice = () => {
+            const planType = document.getElementById('plan-type').value;
+            const cpu = parseInt(document.getElementById('cpu').value);
+            const memory = parseInt(document.getElementById('memory').value);
+            const storage = parseInt(document.getElementById('storage').value);
+            const features = Array.from(document.querySelectorAll('input[name="features"]:checked')).map(cb => cb.value);
+
+            // Base prices for different plan types
+            const basePrices = {
+                basic: 50,
+                pro: 100,
+                enterprise: 200
+            };
+
+            // Resource pricing
+            const resourcePrice = (cpu * 10) + (memory * 5) + (storage * 0.1);
+
+            // Feature pricing
+            const featurePrices = {
+                backup: 20,
+                monitoring: 30,
+                support: 50
+            };
+            const featuresPrice = features.reduce((sum, feature) => sum + (featurePrices[feature] || 0), 0);
+
+            // Update price display
+            document.getElementById('base-price').textContent = `$${basePrices[planType] || 0}`;
+            document.getElementById('resources-price').textContent = `$${resourcePrice.toFixed(2)}`;
+            document.getElementById('features-price').textContent = `$${featuresPrice}`;
+            document.getElementById('total-price').textContent = `$${(basePrices[planType] + resourcePrice + featuresPrice).toFixed(2)}`;
+        };
+
+        // Add event listeners for price calculation
+        document.querySelectorAll('select, input[type="number"], input[type="checkbox"]').forEach(element => {
+            element.addEventListener('change', calculatePrice);
+        });
+
+        // Form submission
+        document.getElementById('product-config-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            try {
+                const formData = new FormData(e.target);
+                const config = {
+                    planType: formData.get('planType'),
+                    resources: {
+                        cpu: parseInt(formData.get('cpu')),
+                        memory: parseInt(formData.get('memory')),
+                        storage: parseInt(formData.get('storage'))
+                    },
+                    features: Array.from(formData.getAll('features')),
+                    price: parseFloat(document.getElementById('total-price').textContent.replace('$', ''))
+                };
+
+                // Create order
+                const order = await apiClient.createOrder(config);
+                
+                // Process payment
+                const payment = await apiClient.processPayment({
+                    orderId: order.id,
+                    amount: config.price
+                });
+
+                // Start deployment
+                const deployment = await apiClient.startDeployment({
+                    orderId: order.id,
+                    configuration: config
+                });
+
+                // Redirect to success page or show success message
+                alert('Your order has been processed successfully!');
+                window.location.href = `order-status.html?orderId=${order.id}`;
+            } catch (error) {
+                console.error('Error processing order:', error);
+                alert('There was an error processing your order. Please try again.');
+            }
+        });
+
+        // Initial price calculation
+        calculatePrice();
+    </script>
+</body>
+</html> 
